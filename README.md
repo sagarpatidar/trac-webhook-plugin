@@ -1,6 +1,6 @@
-# trac-slack-plugin
+# trac-webhook-plugin
 
-Plugin to announce Trac changes in [Slack](https://slack.com/) service.
+Plugin to post Trac changes to a webhook endpoint.
 
 
 ## Installation
@@ -19,24 +19,25 @@ Deploy to a specific Trac environment:
 Enable plugin in trac.ini:
 
     [components]
-    slack_notification.* = enabled
+    webhook_notification.* = enabled
 
 Configuration in trac.ini:
 
-    [slack]
-    webhook = https://hooks.slack.com/services/T03424351J2/B03451KH/t2w23452345mXaNhuuAibD
+    [webhook]
+    webhook = https://host/webhook/path
     channel = #Trac
     username = Trac-Bot
     fields = type,component,resolution
 
-
-
-Thanks to Sebastian Southen for his work with the Irker Notification!
+This plugin is based on the [Slack Notification plugin](https://github.com/mandic-cloud/trac-slack-plugin),
+which is based itself on the [Irker Notification plugin](https://github.com/Southen/trac-irker-plugin).
+Lots of thanks go to their authors!
 
 
 ## License
 
-Copyright (c) 2014, Sebastian Southen  
+Copyright (c) 2016, Adrián Pérez de Castro <aperez@igalia.com>
+Copyright (c) 2014, Sebastian Southen
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without

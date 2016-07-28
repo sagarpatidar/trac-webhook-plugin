@@ -17,7 +17,7 @@ def prepare_ticket_values(ticket, action=None):
 	values['changes'] = ''
 	return values
 
-class SlackNotifcationPlugin(Component):
+class WebhookNotificationPlugin(Component):
 	implements(ITicketChangeListener)
 	webhook = Option('slack', 'webhook', 'https://hooks.slack.com/services/',
 		doc="Incoming webhook for Slack")
