@@ -2,32 +2,48 @@
 
 Plugin to post Trac changes to a webhook endpoint.
 
+This is designed to be used in conjunction with the [luabot webhook
+plugin](https://github.com/aperezdc/luabot/blob/master/plugin/webhook.lua).
+
 
 ## Installation
 
 Requirements:
 
-    Requests library: https://pypi.python.org/pypi/requests
-    $ pip install requests
+* [Requests](https://pypi.python.org/pypi/requests)
 
-Deploy to a specific Trac environment:
+Install and enable the plugin in `trac.ini`:
 
-    $ cd /path/to/pluginsource
-    $ python setup.py bdist_egg
-    $ cp dist/*.egg /path/to/projenv/plugins
-
-Enable plugin in trac.ini:
-
-    [components]
-    webhook_notification.* = enabled
+```ini
+[components]
+webhook_notification.* = enabled
+```
 
 Configuration in trac.ini:
 
-    [webhook]
-    webhook = https://host/webhook/path
-    channel = #Trac
-    username = Trac-Bot
-    fields = type,component,resolution
+```ini
+[webhook]
+secret = randomstring
+url = https://host/webhook/path
+mucs = team@conference.domain.com,devel@conference.domain.com
+jids = bob@domain.com
+fields = type,component,resolution
+```
+
+Some notes on the configuration:
+
+* Multiple comma-separated JIDs can be specified both for `mucs` (chat rooms)
+  and `jids` (individuals).
+* The `secret` must be a random string which is configured also in the
+  receiving endpoint. It is used to generate a HMAC-SHA1 hex digest of the
+  body using `secret` as the key. The digest is sent in the
+  `X-WebHook-Signature` HTTP header.
+* It is possible to specify multiple `url` values separated by commas.
+  Currently the usefulness of this feature is limited because the same
+  `secret` is used for all the URL endpoints.
+
+
+## Acknowledgements
 
 This plugin is based on the [Slack Notification plugin](https://github.com/mandic-cloud/trac-slack-plugin),
 which is based itself on the [Irker Notification plugin](https://github.com/Southen/trac-irker-plugin).
@@ -36,6 +52,7 @@ Lots of thanks go to their authors!
 
 ## License
 
+```
 Copyright (c) 2016, Adrián Pérez de Castro <aperez@igalia.com>
 Copyright (c) 2014, Sebastian Southen
 All rights reserved.
@@ -65,3 +82,4 @@ INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
 WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
 NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```
