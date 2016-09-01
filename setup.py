@@ -13,6 +13,9 @@ setup(
     url='https://github.com/aperezdc/trac-webhook-plugin',
     license='BSD',
     packages=['webhook_notification'],
+    install_requires=[
+        "requests",
+    ],
     classifiers=[
         'Framework :: Trac',
         'License :: OSI Approved :: BSD License',

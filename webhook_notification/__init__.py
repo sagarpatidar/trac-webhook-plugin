@@ -1,11 +1,25 @@
+# -*- coding: utf-8 -*-
+
 import json
 import requests
+import hashlib
+import hmac
 import re
 from trac.core import *
 from trac.config import Option, IntOption
 from trac.ticket.api import ITicketChangeListener
 #from trac.versioncontrol.api import IRepositoryChangeListener
 #from trac.wiki.api import IWikiChangeListener
+
+def shorten(s, length):
+    result = []
+    for word in s.split():
+        result.append(word)
+        length -= len(word)
+        if length < 0:
+            result.append(u"…")
+            break
+    return u" ".join(result)
 
 def prepare_ticket_values(ticket, action=None):
 	values = ticket.values.copy()
@@ -19,68 +33,64 @@ def prepare_ticket_values(ticket, action=None):
 
 class WebhookNotificationPlugin(Component):
 	implements(ITicketChangeListener)
-	webhook = Option('slack', 'webhook', 'https://hooks.slack.com/services/',
-		doc="Incoming webhook for Slack")
-	channel = Option('slack', 'channel', '#Trac',
-		doc="Channel name on Slack")
-	username = Option('slack', 'username', 'Trac-Bot',
-		doc="Username of the bot on Slack notify")
-	fields = Option('slack', 'fields', 'type,component,resolution',
-		doc="Fields to include in Slack notification")
+	urls = Option('webhook', 'url', '', doc="Incoming webhook")
+	fields = Option('webhook', 'fields', 'type,component,resolution',
+		doc="Fields to include in notification")
+	mucs = Option("webhook", "mucs", "", doc="List of MUC rooms to notify")
+	jids = Option("webhook", "jids", "", doc="List of JIDs to notify")
+	secret = Option("webhook", "secret", "", doc="Secret used for signing requests")
 
 	def notify(self, type, values):
-		# values['type'] = type
 		values['author'] = re.sub(r' <.*', '', values['author'])
-		#template = '%(project)s/%(branch)s %(rev)s %(author)s: %(logmsg)s'
-		#template = '%(project)s %(rev)s %(author)s: %(logmsg)s'
-		template = '_%(project)s_ :incoming_envelope: \n%(type)s <%(url)s|%(id)s>: %(summary)s [*%(action)s* by @%(author)s]'
-
-		attachments = []
-
-		if values['action'] == 'closed':
-			template += ' :white_check_mark:'
-
-		if values['action'] == 'created':
-			template += ' :pushpin:'
-
-		if values['attrib']:
-			attachments.append({
-				'title': 'Attributes',
-				'text': values['attrib']
-			})
-
-		if values.get('changes', False):
-			attachments.append({
-				'title': ':small_red_triangle: Changes',
-				'text': values['changes']
-			})
-
-		# For comment and description, strip the {{{, }}} markers. They add nothing
-		# of value in Slack, and replacing them with ` or ``` doesn't help as these
-		# end up being formatted as blockquotes anyway.
-
-		if values['description']:
-			attachments.append({
-				'title': 'Description',
-				'text': re.sub(r'({{{|}}})', '', values['description'])
-			})
-
-		if values['comment']:
-			attachments.append({
-				'title': 'Comment:',
-				'text': re.sub(r'({{{|}}})', '', values['comment'])
-			})
-
+		template = u'[%(project)s] %(type)s %(id)s - %(summary)s (%(action)s by @%(author)s)'
 		message = template % values
 
+		if values['action'] == 'closed':
+			message += u' ✅'
+
+		if values['action'] == 'created':
+			message += u' 📌'
+
+		if values['attrib']:
+			message += u" ["
+			message += values['attrib']
+			message += u"]"
+
+		if values.get('changes', False):
+			message += u" <"
+			message += values['changes']
+			message += u">"
+
+		if values['description']:
+			message += u" ✎ Description: “"
+			message += shorten(re.sub(r'({{{|}}})', '', values['description']), 70)
+			message += u"”"
+
+		if values['comment']:
+			message += u" ✎ Comment: “"
+			message += shorten(re.sub(r'({{{|}}})', '', values['comment']), 70)
+			message += u"”"
+
+		mucs = self.mucs.strip()
+		jids = self.jids.strip()
+
 		data = {
-			"channel": self.channel,
-			"username": self.username,
+			"mucs": map(lambda s: s.strip(), mucs.split(",")) if mucs else [],
+			"jids": map(lambda s: s.strip(), jids.split(",")) if jids else [],
 			"text": message.encode('utf-8').strip(),
-			"attachments": attachments
+			"url" : values["url"],
 		}
+
+		data_body = json.dumps(data).encode("utf-8")
+		mac = hmac.new(self.secret.encode("utf-8"), msg=data_body, digestmod=hashlib.sha1)
+		headers = {
+			"Content-Type": "application/json",
+			"X-WebHook-Signature": "sha1=" + mac.hexdigest(),
+		}
+
 		try:
-			r = requests.post(self.webhook, data={"payload":json.dumps(data)})
+			for url in self.urls.split(","):
+				r = requests.post(url.strip(), data=data_body, headers=headers, timeout=5)
 		except requests.exceptions.RequestException as e:
 			return False
 		return True
@@ -88,15 +98,12 @@ class WebhookNotificationPlugin(Component):
 	def ticket_created(self, ticket):
 		values = prepare_ticket_values(ticket, 'created')
 		values['author'] = values['reporter']
-		values['comment'] = ''
-		fields = self.fields.split(',')
-		attrib = []
-
-		for field in fields:
-			if ticket[field] != '':
-				attrib.append('  * %s: %s' % (field, ticket[field]))
-
-		values['attrib'] = "\n".join(attrib) or ''
+		values['comment'] = u""
+		fields = (s.strip() for s in self.fields.split(','))
+		attrib = (u"%s: %s".format(field, ticket[field])
+				for field in fields
+				if ticket[field])
+		values['attrib'] = u", ".join(attrib) or u""
 
 		self.notify('ticket', values)
 
@@ -121,14 +128,19 @@ class WebhookNotificationPlugin(Component):
 		attrib = []
 
 		for field in fields:
-			if ticket[field] != '':
-				attrib.append('  * %s: %s' % (field, ticket[field]))
-
 			if field in old_values.keys():
-				changes.append('  * %s: %s => %s' % (field, old_values[field], ticket[field]))
+				if old_values[field]:
+					if ticket[field]:
+						changes.append(u'%s: %s → %s' % (field, old_values[field], ticket[field]))
+					else:
+						changes.append(u"-%s" % field)
+				elif ticket[field]:
+					changes.append(u"%s: +%s" % (field, ticket[field]))
+			elif ticket[field]:
+				attrib.append(u"%s: %s" % (field, ticket[field]))
 
-		values['attrib'] = "\n".join(attrib) or ''
-		values['changes'] = "\n".join(changes) or ''
+		values['attrib'] = u", ".join(attrib) or u""
+		values['changes'] = u", ".join(changes) or u""
 
 		self.notify('ticket', values)
 
