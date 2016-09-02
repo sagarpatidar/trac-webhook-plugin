@@ -100,7 +100,7 @@ class WebhookNotificationPlugin(Component):
 		values['author'] = values['reporter']
 		values['comment'] = u""
 		fields = (s.strip() for s in self.fields.split(','))
-		attrib = (u"%s: %s".format(field, ticket[field])
+		attrib = (u"%s: %s" % (field, ticket[field])
 				for field in fields
 				if ticket[field])
 		values['attrib'] = u", ".join(attrib) or u""
