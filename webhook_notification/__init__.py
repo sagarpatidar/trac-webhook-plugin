@@ -46,10 +46,10 @@ class WebhookNotificationPlugin(Component):
 		message = template % values
 
 		if values['action'] == 'closed':
-			message += u' ✅'
+			message += u" ✔"
 
 		if values['action'] == 'created':
-			message += u' 📌'
+			message += u" ⛳ "
 
 		if values['attrib']:
 			message += u" ["
