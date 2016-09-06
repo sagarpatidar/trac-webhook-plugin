@@ -28,10 +28,13 @@ url = https://host/webhook/path
 mucs = team@conference.domain.com,devel@conference.domain.com
 jids = bob@domain.com
 fields = type,component,resolution
+notify = created,changed,closed
 ```
 
 Some notes on the configuration:
 
+* The list of ticket actions in `notify` can be empty. In that case, all
+  actions are notified.
 * Multiple comma-separated JIDs can be specified both for `mucs` (chat rooms)
   and `jids` (individuals).
 * The `secret` must be a random string which is configured also in the

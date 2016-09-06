@@ -31,6 +31,10 @@ def prepare_ticket_values(ticket, action=None):
     values['changes'] = ''
     return values
 
+def split_option(value, separator=","):
+    return map(lambda s: s.strip(), value.split(separator))
+
+
 class WebhookNotificationPlugin(Component):
     implements(ITicketChangeListener)
     urls = Option('webhook', 'url', '', doc="Incoming webhook")
@@ -39,6 +43,8 @@ class WebhookNotificationPlugin(Component):
     mucs = Option("webhook", "mucs", "", doc="List of MUC rooms to notify")
     jids = Option("webhook", "jids", "", doc="List of JIDs to notify")
     secret = Option("webhook", "secret", "", doc="Secret used for signing requests")
+    notify_events = Option("webhook", "notify", "created,closed,changed",
+            doc="List of ticket events to notify")
 
     def notify(self, type, values):
         values['author'] = re.sub(r' <.*', '', values['author'])
@@ -96,6 +102,8 @@ class WebhookNotificationPlugin(Component):
         return True
 
     def ticket_created(self, ticket):
+        if not self.should_notify_event("created"):
+            return
         values = prepare_ticket_values(ticket, 'created')
         values['author'] = values['reporter']
         values['comment'] = u""
@@ -113,6 +121,10 @@ class WebhookNotificationPlugin(Component):
             if 'status' in ticket.values:
                 if ticket.values['status'] != old_values['status']:
                     action = ticket.values['status']
+
+        if not self.should_notify_event(action):
+            return
+
         values = prepare_ticket_values(ticket, action)
         values.update({
             'comment': comment or '',
@@ -146,6 +158,10 @@ class WebhookNotificationPlugin(Component):
 
     def ticket_deleted(self, ticket):
         pass
+
+    def should_notify_event(self, event_name):
+        enabled_events = set(split_option(self.notify_events))
+        return len(enabled_events) == 0 or event_name in enabled_events
 
     #def wiki_page_added(self, page):
     #def wiki_page_changed(self, page, version, t, comment, author, ipnr):
