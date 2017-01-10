@@ -78,7 +78,9 @@ class WebhookNotificationPlugin(Component):
                 'name': self.env.project_name.encode('utf-8').strip(),
                 'description': self.env.project_description.encode('utf-8').strip(),
                 'admin': self.env.project_admin.encode('utf-8').strip(),
-                'url': self.env.abs_href(),
+                'url': self.env.project_url,
+                'icon': self.env.project_icon,
+                'base_url': self.env.abs_href(),
             },
             'invoke_url': self.req.base_url + self.req.path_info,
         }
