@@ -1,6 +1,6 @@
 # trac-webhook-plugin
 
-Plugin to post Trac changes to a webhook endpoint.
+Plugin to ```POST``` Trac changes to a webhook endpoint.
 The goal is to provide a complete dataset for as many events as possible.
 
 Currently 2 resource types are supported:
