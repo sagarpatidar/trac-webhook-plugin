@@ -56,8 +56,8 @@ All events publish the following standard fields:
          "description":"Awesome Project",
          "name":"Awesome",
          "base_url":"https://trac.awesome.com",
-	 "url":"https://www.awesome.com",
-	 "icon":"site/favicon.ico"
+         "url":"https://www.awesome.com",
+         "icon":"site/favicon.ico"
       },
       "resource_url":"url to either the target ticket or wiki page",
       "user":{
