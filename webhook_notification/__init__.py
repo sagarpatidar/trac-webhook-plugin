@@ -5,89 +5,88 @@ import requests
 import hashlib
 import hmac
 import re
+from collections import OrderedDict
 from trac.core import *
 from trac.config import Option, IntOption
+from trac.util.datefmt import to_utimestamp
 from trac.ticket.api import ITicketChangeListener
-#from trac.versioncontrol.api import IRepositoryChangeListener
-#from trac.wiki.api import IWikiChangeListener
+from trac.ticket.model import Ticket
+from trac.attachment import IAttachmentChangeListener
+from trac.wiki.api import IWikiChangeListener
+from trac.wiki.model import WikiPage
+from trac.web.api import IRequestFilter
 
-def shorten(s, length):
-    result = []
-    for word in s.split():
-        result.append(word)
-        length -= len(word)
-        if length < 0:
-            result.append(u"…")
-            break
-    return u" ".join(result)
+class SortedDict(OrderedDict):
 
-def prepare_ticket_values(ticket, action=None):
-    values = ticket.values.copy()
-    values['id'] = "#" + str(ticket.id)
-    values['action'] = action
-    values['url'] = ticket.env.abs_href.ticket(ticket.id)
-    values['project'] = ticket.env.project_name.encode('utf-8').strip()
-    values['attrib'] = ''
-    values['changes'] = ''
+    def __init__(self, **kwargs):
+        super(SortedDict, self).__init__()
+
+        for key, value in sorted(kwargs.items()):
+            if isinstance(value, dict):
+                self[key] = SortedDict(**value)
+            else:
+                self[key] = value
+
+def prepare_ticket_values(ticket):
+    values = ticket._to_db_types(ticket.values)
+    values['id'] = ticket.id
     return values
 
-def split_option(value, separator=","):
-    return map(lambda s: s.strip(), value.split(separator))
+def prepare_wiki_page_values(page):
+    values = {
+        "name": page.name,
+        "version": page.version,
+        "time": to_utimestamp(page.time),
+        "author": page.author,
+        "text": page.text,
+        "comment": page.comment,
+        "readonly": page.readonly,
+    }
+    return values
 
+def prepare_attachment_values(attachment):
+    values = {
+        "parent_realm": attachment.parent_realm,
+        "parent_id": attachment.parent_id,
+        "filename": attachment.filename,
+        "size": attachment.size,
+        "date": to_utimestamp(attachment.date),
+        "description": attachment.description,
+        "author": attachment.author,
+    }
+    return values
 
 class WebhookNotificationPlugin(Component):
-    implements(ITicketChangeListener)
-    urls = Option('webhook', 'url', '', doc="Incoming webhook")
-    fields = Option('webhook', 'fields', 'type,component,resolution',
-            doc="Fields to include in notification")
-    mucs = Option("webhook", "mucs", "", doc="List of MUC rooms to notify")
-    jids = Option("webhook", "jids", "", doc="List of JIDs to notify")
-    secret = Option("webhook", "secret", "", doc="Secret used for signing requests")
-    notify_events = Option("webhook", "notify", "created,closed,changed",
-            doc="List of ticket events to notify")
+    implements(ITicketChangeListener, IWikiChangeListener, IAttachmentChangeListener, IRequestFilter)
+    url = Option('webhook', 'url', '', doc="Outgoing webhook URL")
+    secret = Option("webhook", "secret", '', doc="Secret used for signing requests")
+    username = Option("webhook", "username", '', doc="Username for HTTP Auth")
+    password = Option("webhook", "password", '', doc="Password for HTTP Auth")
+    req = None
 
-    def notify(self, type, values):
-        values['author'] = re.sub(r' <.*', '', values['author'])
-        template = u'[%(project)s] %(type)s %(id)s - %(summary)s (%(action)s by @%(author)s)'
-        message = template % values
-
-        if values['action'] == 'closed':
-            message += u" ✔"
-
-        if values['action'] == 'created':
-            message += u" ⛳ "
-
-        if values['attrib']:
-            message += u" ["
-            message += values['attrib']
-            message += u"]"
-
-        if values.get('changes', False):
-            message += u" <"
-            message += values['changes']
-            message += u">"
-
-        if values['description']:
-            message += u" ✎ Description: “"
-            message += shorten(re.sub(r'({{{|}}})', '', values['description']), 70)
-            message += u"”"
-
-        if values['comment']:
-            message += u" ✎ Comment: “"
-            message += shorten(re.sub(r'({{{|}}})', '', values['comment']), 70)
-            message += u"”"
-
-        mucs = self.mucs.strip()
-        jids = self.jids.strip()
-
-        data = {
-            "mucs": map(lambda s: s.strip(), mucs.split(",")) if mucs else [],
-            "jids": map(lambda s: s.strip(), jids.split(",")) if jids else [],
-            "text": message.encode('utf-8').strip(),
-            "url" : values["url"],
+    def notify(self, realm, action, values):
+        values['realm'] = realm
+        values['action'] = action
+        values['user'] = {
+            'username': self.req.authname,
+            'name': self.req.session.get('name'),
+            'email': self.req.session.get('email'),
+        }
+        values['project'] = {
+            'name': self.env.project_name.encode('utf-8').strip(),
+            'description': self.env.project_description.encode('utf-8').strip(),
+            'admin': self.env.project_admin.encode('utf-8').strip(),
+            'url': self.env.abs_href(),
         }
 
-        data_body = json.dumps(data).encode("utf-8")
+        if realm == 'ticket':
+            values['url'] = self.env.abs_href('ticket', values['ticket']['id'])
+        elif realm == 'wiki':
+            values['url'] = self.env.abs_href('wiki', values['page']['name'])
+
+        # make the dict sorted for readability
+        values = SortedDict(**values)
+        data_body = json.dumps(values).encode("utf-8")
         mac = hmac.new(self.secret.encode("utf-8"), msg=data_body, digestmod=hashlib.sha1)
         headers = {
             "Content-Type": "application/json",
@@ -95,25 +94,29 @@ class WebhookNotificationPlugin(Component):
         }
 
         try:
-            for url in self.urls.split(","):
-                r = requests.post(url.strip(), data=data_body, headers=headers, timeout=5)
+            r = requests.post(self.url.strip(), data=data_body, headers=headers, timeout=5, auth=(self.username, self.password))
         except requests.exceptions.RequestException as e:
+            #self.log.error("Failed webhook request: %r", e)
             return False
         return True
 
-    def ticket_created(self, ticket):
-        if not self.should_notify_event("created"):
-            return
-        values = prepare_ticket_values(ticket, 'created')
-        values['author'] = values['reporter']
-        values['comment'] = u""
-        fields = (s.strip() for s in self.fields.split(','))
-        attrib = (u"%s: %s" % (field, ticket[field])
-                for field in fields
-                if ticket[field])
-        values['attrib'] = u", ".join(attrib) or u""
+    # IRequestFilter methods
+    def pre_process_request(self, req, handler):
+        self.req = req
+        return handler
+    
+    def post_process_request(self, req, template, data, content_type):
+        return template, data, content_type
 
-        self.notify('ticket', values)
+    # ITicketChangeListener methods
+    def ticket_created(self, ticket):
+        values = {
+            'author': u"",
+            'comment': u"",
+            'old_values': {},
+            'ticket': prepare_ticket_values(ticket),
+        }
+        self.notify('ticket', 'created', values)
 
     def ticket_changed(self, ticket, comment, author, old_values):
         action = 'changed'
@@ -122,48 +125,94 @@ class WebhookNotificationPlugin(Component):
                 if ticket.values['status'] != old_values['status']:
                     action = ticket.values['status']
 
-        if not self.should_notify_event(action):
-            return
-
-        values = prepare_ticket_values(ticket, action)
-        values.update({
-            'comment': comment or '',
+        values = {
             'author': author or '',
-            'old_values': old_values
-        })
-
-        if 'description' not in old_values.keys():
-            values['description'] = ''
-
-        fields = self.fields.split(',')
-        changes = []
-        attrib = []
-
-        for field in fields:
-            if field in old_values.keys():
-                if old_values[field]:
-                    if ticket[field]:
-                        changes.append(u'%s: %s → %s' % (field, old_values[field], ticket[field]))
-                    else:
-                        changes.append(u"-%s" % field)
-                elif ticket[field]:
-                    changes.append(u"%s: +%s" % (field, ticket[field]))
-            elif ticket[field]:
-                attrib.append(u"%s: %s" % (field, ticket[field]))
-
-        values['attrib'] = u", ".join(attrib) or u""
-        values['changes'] = u", ".join(changes) or u""
-
-        self.notify('ticket', values)
+            'comment': comment or '',
+            'old_values': ticket._to_db_types(old_values),
+            'ticket': prepare_ticket_values(ticket),
+        }
+        self.notify('ticket', action, values)
 
     def ticket_deleted(self, ticket):
+        values = {
+            'ticket': prepare_ticket_values(ticket),
+        }
+        self.notify('ticket', 'deleted', values)
+
+    def ticket_comment_modified(self, ticket, cdate, author, comment, old_comment):
         pass
 
-    def should_notify_event(self, event_name):
-        enabled_events = set(split_option(self.notify_events))
-        return len(enabled_events) == 0 or event_name in enabled_events
+    def ticket_change_deleted(self, ticket, cdate, changes):
+        pass
 
-    #def wiki_page_added(self, page):
-    #def wiki_page_changed(self, page, version, t, comment, author, ipnr):
-    #def wiki_page_deleted(self, page):
-    #def wiki_page_version_deleted(self, page):
+    def _unlock_achievement(self, user, name):
+        pass
+
+    # IWikiChangeListener methods
+    def wiki_page_added(self, page):
+        values = {
+            'page': prepare_wiki_page_values(page),
+        }
+        self.notify('wiki', 'created', values)
+
+    def wiki_page_changed(self, page, version, t, comment, author, ipnr):
+        values = {
+            'page': prepare_wiki_page_values(page),
+        }
+        self.notify('wiki', 'changed', values)
+
+    def wiki_page_deleted(self, page):
+        values = {
+            'page': prepare_wiki_page_values(page),
+        }
+        self.notify('wiki', 'deleted', values)
+
+    # can only delete the most recent version
+    # so deleted revision = page.version + 1
+    def wiki_page_version_deleted(self, page):
+        values = {
+            'page': prepare_wiki_page_values(page),
+        }
+        self.notify('wiki', 'version deleted', values)
+
+    def wiki_page_renamed(self, page, old_name):
+        values = {
+            'old_name': old_name,
+            'page': prepare_wiki_page_values(page),
+        }
+        self.notify('wiki', 'renamed', values)
+
+    def wiki_page_comment_modified(self, page, old_comment):
+        values = {
+            'old_comment': old_comment,
+            'page': prepare_wiki_page_values(page),
+        }
+        self.notify('wiki', 'comment modified', values)
+
+    # IAttachmentChangeListener methods
+    def _attachment_action(self, attachment, action):
+        parent = attachment.resource.parent
+        if parent.realm == "ticket":
+            ticket = Ticket(self.env, parent.id)
+            values = {
+                'ticket': prepare_ticket_values(ticket),
+                'attachment': prepare_attachment_values(attachment),
+            }
+        elif parent.realm == "wiki":
+            page = WikiPage(self.env, parent.id)
+            values = {
+                'page': prepare_wiki_page_values(page),
+                'attachment': prepare_attachment_values(attachment),
+            }
+        
+        if parent.realm == "ticket" or parent.realm == "wiki":
+            self.notify(parent.realm, action, values)
+
+    def attachment_added(self, attachment):
+        self._attachment_action(attachment, 'attachment added')
+
+    def attachment_deleted(self, attachment):
+        self._attachment_action(attachment, 'attachment deleted')
+
+    def attachment_reparented(self, attachment, old_parent_realm, old_parent_id):
+        pass

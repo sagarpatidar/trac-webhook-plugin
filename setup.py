@@ -6,11 +6,11 @@ from setuptools import setup
 
 setup(
     name='WebhookNotificationPlugin',
-    version='0.2.1',
+    version='0.2.2',
     description='Plugin to post Trac changes to a webhook',
-    author='Adrián Pérez de Castro',
-    author_email='aperez@igalia.com',
-    url='https://github.com/aperezdc/trac-webhook-plugin',
+    author='Travis Glenn Hansen',
+    author_email='travisghansen@yahoo.com',
+    url='https://github.com/travisghansen/trac-webhook-plugin',
     license='BSD',
     packages=['webhook_notification'],
     install_requires=[
