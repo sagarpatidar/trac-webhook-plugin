@@ -7,7 +7,7 @@ import hmac
 import re
 from collections import OrderedDict
 from trac.core import *
-from trac.config import Option, IntOption
+from trac.config import Option, BoolOption, IntOption
 from trac.util.datefmt import to_utimestamp
 from trac.ticket.api import ITicketChangeListener
 from trac.ticket.model import Ticket
@@ -62,6 +62,7 @@ class WebhookNotificationPlugin(Component):
     secret = Option('webhook', 'secret', '', doc='Secret used for signing requests')
     username = Option('webhook', 'username', '', doc='Username for HTTP Auth')
     password = Option('webhook', 'password', '', doc='Password for HTTP Auth')
+    ssl_verify = BoolOption('webhook', 'ssl_verify', 'true', doc='Verify server SSL certificate')
     req = None
 
     def notify(self, realm, action, values):
@@ -97,7 +98,9 @@ class WebhookNotificationPlugin(Component):
         }
 
         try:
-            r = requests.post(self.url.strip(), data=data_body, headers=headers, timeout=5, auth=(self.username, self.password))
+            # for client cert
+            # cert=('/path/client.cert', '/path/client.key')
+            r = requests.post(self.url.strip(), data=data_body, headers=headers, timeout=5, auth=(self.username, self.password), verify=self.ssl_verify)
         except requests.exceptions.RequestException as e:
             #self.log.error("Failed webhook request: %r", e)
             return False
