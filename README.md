@@ -33,6 +33,7 @@ secret = randomstring
 url = https://host/webhook/path
 username = HTTP Auth Username
 password = HTTP Auth Password
+ssl_verify = true|false # default is true, if false self-signed certs can be used
 ```
 
 Some notes on the configuration:
