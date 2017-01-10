@@ -58,31 +58,34 @@ def prepare_attachment_values(attachment):
 
 class WebhookNotificationPlugin(Component):
     implements(ITicketChangeListener, IWikiChangeListener, IAttachmentChangeListener, IRequestFilter)
-    url = Option('webhook', 'url', '', doc="Outgoing webhook URL")
-    secret = Option("webhook", "secret", '', doc="Secret used for signing requests")
-    username = Option("webhook", "username", '', doc="Username for HTTP Auth")
-    password = Option("webhook", "password", '', doc="Password for HTTP Auth")
+    url = Option('webhook', 'url', '', doc='Outgoing webhook URL')
+    secret = Option('webhook', 'secret', '', doc='Secret used for signing requests')
+    username = Option('webhook', 'username', '', doc='Username for HTTP Auth')
+    password = Option('webhook', 'password', '', doc='Password for HTTP Auth')
     req = None
 
     def notify(self, realm, action, values):
-        values['realm'] = realm
-        values['action'] = action
-        values['user'] = {
-            'username': self.req.authname,
-            'name': self.req.session.get('name'),
-            'email': self.req.session.get('email'),
-        }
-        values['project'] = {
-            'name': self.env.project_name.encode('utf-8').strip(),
-            'description': self.env.project_description.encode('utf-8').strip(),
-            'admin': self.env.project_admin.encode('utf-8').strip(),
-            'url': self.env.abs_href(),
+        values['_event'] = {
+            'realm': realm,
+            'action': action,
+            'user': {
+                'username': self.req.authname,
+                'name': self.req.session.get('name'),
+                'email': self.req.session.get('email'),
+            },
+            'project': {
+                'name': self.env.project_name.encode('utf-8').strip(),
+                'description': self.env.project_description.encode('utf-8').strip(),
+                'admin': self.env.project_admin.encode('utf-8').strip(),
+                'url': self.env.abs_href(),
+            },
+            'invoke_url': self.req.base_url + self.req.path_info,
         }
 
         if realm == 'ticket':
-            values['url'] = self.env.abs_href('ticket', values['ticket']['id'])
+            values['_event']['resource_url'] = self.env.abs_href('ticket', values['ticket']['id'])
         elif realm == 'wiki':
-            values['url'] = self.env.abs_href('wiki', values['page']['name'])
+            values['_event']['resource_url'] = self.env.abs_href('wiki', values['page']['name'])
 
         # make the dict sorted for readability
         values = SortedDict(**values)
