@@ -1,12 +1,22 @@
 # trac-webhook-plugin
 
 Plugin to post Trac changes to a webhook endpoint.
+The goal is to provide a complete dataset for as many events as possible.
+
+Currently 2 resource types are supported:
+ 1. Tickets
+ 1. WikiPage
 
 ## Installation
 
 Requirements:
 
 * [Requests](https://pypi.python.org/pypi/requests)
+
+```
+python setup.py bdist_egg;
+cp dist/WebhookNotificationPlugin-0.2.1-py2.7.egg /path/to/plugins
+```
 
 Install and enable the plugin in `trac.ini`:
 
@@ -32,14 +42,38 @@ Some notes on the configuration:
   body using `secret` as the key. The digest is sent in the
   `X-WebHook-Signature` HTTP header.
 
-* The plugin emits the following data/events
- * Ticket
-   * created
-   * changed
-   * deleted
- * Wiki
-  * created
-  * changed
+## Data Format
+All events publish the following standard fields: 
+```
+{
+   "_event":{
+      "action":"see list of per-realm actions",
+      "realm":"wiki|ticket",
+      "invoke_url":"url that generated the event",
+      "project":{
+         "admin":"admin@awesome.com",
+         "description":"Awesome Project",
+         "name":"Awesome",
+         "url":"https://trac.awesome.com"
+      },
+      "resource_url":"url to either the target ticket or wiki page",
+      "user":{
+         "email":"user@awesome.com",
+         "name":"user who instigated the change",
+         "username":"user"
+      }
+   }
+   ...
+}
+```
+If the realm is `ticket` then additionally there will be a top-level key `ticket` which includes all the ticket details.
+
+If the realm is `wiki` then addtionally there will be a top-level key `page` which includes all the wiki page details.
+
+If the action is an `attachment` action then the result will include the appropriate top-level key for either `ticket` or `wiki` **and** additionally an `attachment` top-level key with the details of the `attachment`.
+
+Various *action specific* top-level keys (eg: if a `ticket` `changed` event is triggered there will be an `old_values` top-level key with all the changes).
+
 
 ## Development
 
