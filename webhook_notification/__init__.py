@@ -5,6 +5,7 @@ import requests
 import hashlib
 import hmac
 import re
+import sys
 from collections import OrderedDict
 from trac.core import *
 from trac.config import Option, BoolOption, IntOption
@@ -57,7 +58,9 @@ def prepare_attachment_values(attachment):
     return values
 
 class WebhookNotificationPlugin(Component):
-    implements(ITicketChangeListener, IWikiChangeListener, IAttachmentChangeListener, IRequestFilter)
+    implements(ITicketChangeListener, IWikiChangeListener,
+    IAttachmentChangeListener, IRequestFilter)
+    
     url = Option('webhook', 'url', '', doc='Outgoing webhook URL')
     secret = Option('webhook', 'secret', '', doc='Secret used for signing requests')
     username = Option('webhook', 'username', '', doc='Username for HTTP Auth')
@@ -66,7 +69,7 @@ class WebhookNotificationPlugin(Component):
     req = None
 
     def notify(self, realm, action, values):
-        values['_event'] = {
+        data = {
             'realm': realm,
             'action': action,
             'user': {
@@ -86,13 +89,15 @@ class WebhookNotificationPlugin(Component):
         }
 
         if realm == 'ticket':
-            values['_event']['resource_url'] = self.env.abs_href('ticket', values['ticket']['id'])
+            data['resource_url'] = self.env.abs_href('ticket', values['ticket']['id'])
         elif realm == 'wiki':
-            values['_event']['resource_url'] = self.env.abs_href('wiki', values['page']['name'])
+            data['resource_url'] = self.env.abs_href('wiki', values['page']['name'])
+
+        data['data'] = values
 
         # make the dict sorted for readability
-        values = SortedDict(**values)
-        data_body = json.dumps(values).encode("utf-8")
+        data = SortedDict(**data)
+        data_body = json.dumps(data).encode("utf-8")
         mac = hmac.new(self.secret.encode("utf-8"), msg=data_body, digestmod=hashlib.sha1)
         headers = {
             "Content-Type": "application/json",
@@ -103,8 +108,8 @@ class WebhookNotificationPlugin(Component):
             # for client cert
             # cert=('/path/client.cert', '/path/client.key')
             r = requests.post(self.url.strip(), data=data_body, headers=headers, timeout=5, auth=(self.username, self.password), verify=self.ssl_verify)
-        except requests.exceptions.RequestException as e:
-            #self.log.error("Failed webhook request: %r", e)
+        except Exception as e: # catch *all* exceptions
+            self.log.error("Failed webhook request: %r", e)
             return False
         return True
 

@@ -47,35 +47,33 @@ Some notes on the configuration:
 All events publish the following standard fields: 
 ```
 {
-   "_event":{
-      "action":"see list of per-realm actions",
-      "realm":"wiki|ticket",
-      "invoke_url":"url that generated the event",
-      "project":{
-         "admin":"admin@awesome.com",
-         "description":"Awesome Project",
-         "name":"Awesome",
-         "base_url":"https://trac.awesome.com",
-         "url":"https://www.awesome.com",
-         "icon":"site/favicon.ico"
-      },
-      "resource_url":"url to either the target ticket or wiki page",
-      "user":{
-         "email":"user@awesome.com",
-         "name":"user who instigated the change",
-         "username":"user"
-      }
-   }
-   ...
+   "action":"see list of per-realm actions",
+   "realm":"wiki|ticket",
+   "invoke_url":"url that generated the event",
+   "project":{
+      "admin":"admin@awesome.com",
+      "description":"Awesome Project",
+      "name":"Awesome",
+      "base_url":"https://trac.awesome.com",
+      "url":"https://www.awesome.com",
+      "icon":"site/favicon.ico"
+   },
+   "resource_url":"url to either the target ticket or wiki page",
+   "user":{
+      "email":"user@awesome.com",
+      "name":"user who instigated the change",
+      "username":"user"
+   },
+   "data":{...}
 }
 ```
-If the realm is `ticket` then additionally there will be a top-level key `ticket` which includes all the ticket details.
+If the realm is `ticket` then `data.ticket` will include all the ticket details.
 
-If the realm is `wiki` then addtionally there will be a top-level key `page` which includes all the wiki page details.
+If the realm is `wiki` then `data.page` will include all the wiki page details.
 
-If the action is an `attachment` action then the result will include the appropriate top-level key for either `ticket` or `wiki` **and** additionally an `attachment` top-level key with the details of the `attachment`.
+If the action is an `attachment` action then the result will include the appropriate key for either `ticket` or `wiki` **and** additionally a `data.attachment` key with the details of the `attachment`.
 
-Various *action specific* top-level keys (eg: if a `ticket` `changed` event is triggered there will be an `old_values` top-level key with all the changes).
+Various *action specific* `data` keys (eg: if a `ticket` `changed` event is triggered there will be a `data.old_values` key with all the changes).
 
 
 ## Development
