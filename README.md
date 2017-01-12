@@ -34,6 +34,7 @@ url = https://host/webhook/path
 username = HTTP Auth Username
 password = HTTP Auth Password
 ssl_verify = true|false # default is true, if false self-signed certs can be used
+intelligent_ticket_change_action = true|false # default is false, if true newly set status on ticket will be marked as the event action
 ```
 
 Some notes on the configuration:

@@ -66,6 +66,18 @@ class WebhookNotificationPlugin(Component):
     username = Option('webhook', 'username', '', doc='Username for HTTP Auth')
     password = Option('webhook', 'password', '', doc='Password for HTTP Auth')
     ssl_verify = BoolOption('webhook', 'ssl_verify', 'true', doc='Verify server SSL certificate')
+    intelligent_ticket_change_action = BoolOption('webhook',
+        'intelligent_ticket_change_action', 'false',
+        doc="""If disabled/false then ticket change events will alwyas emit the
+        action as 'changed'.
+        
+        If enabled/true then ticket change events will emit the action as
+        'changed' in situations where the ticket status does not change.
+        However, if status is among the fields that changed on the ticket the
+        event action will be the newly set status.
+        
+        (ie: closed, reopened, assigned, etc)
+        """)
     req = None
 
     def notify(self, realm, action, values):
@@ -133,10 +145,11 @@ class WebhookNotificationPlugin(Component):
 
     def ticket_changed(self, ticket, comment, author, old_values):
         action = 'changed'
-        if 'status' in old_values:
-            if 'status' in ticket.values:
-                if ticket.values['status'] != old_values['status']:
-                    action = ticket.values['status']
+        if self.intelligent_ticket_change_action:
+            if 'status' in old_values:
+                if 'status' in ticket.values:
+                    if ticket.values['status'] != old_values['status']:
+                        action = ticket.values['status']
 
         values = {
             'author': author or '',
