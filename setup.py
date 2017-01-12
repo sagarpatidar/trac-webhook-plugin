@@ -6,7 +6,7 @@ from setuptools import setup
 
 setup(
     name='WebhookNotificationPlugin',
-    version='0.2.3',
+    version='0.3.0',
     description='Plugin to post Trac changes to a webhook',
     author='Travis Glenn Hansen',
     author_email='travisghansen@yahoo.com',
