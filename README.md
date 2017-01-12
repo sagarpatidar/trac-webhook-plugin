@@ -16,7 +16,7 @@ Requirements:
 
 ```
 python setup.py bdist_egg;
-cp dist/WebhookNotificationPlugin-0.2.1-py2.7.egg /path/to/plugins
+cp dist/*.egg /path/to/plugins
 ```
 
 Install and enable the plugin in `trac.ini`:
