@@ -1,7 +1,8 @@
 # trac-webhook-plugin
 
 Plugin to ```POST``` Trac changes to a webhook endpoint.
-The goal is to provide a complete dataset for as many events as possible.
+
+The goal is to provide a complete dataset for as many events as possible.  I send the events to Node-RED for handling which makes it easy to send notifications to slack, make rpc calls, re-publish the event elsewhere (another webhook, messages brokers), etc, etc.
 
 Currently 2 resource types are supported:
  1. Tickets
