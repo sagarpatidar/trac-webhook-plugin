@@ -98,6 +98,7 @@ Implement:
 ## License
 
 ```
+Copyright (c) 2017, Travis Glenn Hansen <travisghansen@yahoo.com>
 Copyright (c) 2016, Adrián Pérez de Castro <aperez@igalia.com>
 Copyright (c) 2014, Sebastian Southen
 All rights reserved.
