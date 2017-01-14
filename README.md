@@ -89,6 +89,11 @@ which is based on the [Slack Notification plugin](https://github.com/mandic-clou
 which is based on the [Irker Notification plugin](https://github.com/Southen/trac-irker-plugin).
 Lots of thanks go to their authors!
 
+## TODO
+
+Implement:
+ 1. [IMilestoneChangeListener](https://trac.edgewall.org/wiki/TracDev/PluginDevelopment/ExtensionPoints/trac.ticket.api.IMilestoneChangeListener)
+ 1. [IRepositoryChangeListener](https://trac.edgewall.org/wiki/TracDev/PluginDevelopment/ExtensionPoints/trac.versioncontrol.api.IRepositoryChangeListener)
 
 ## License
 
